@@ -51,6 +51,9 @@ dotnet publish src/UnityPackageToVpm/UnityPackageToVpm.csproj -c Release -r <RID
 ## 注意点
 
 - **package.jsonはプレースホルダのまま出力されます。** `version`（`0.1.0`固定）、`author`、`description`、`vpmDependencies` などは空のまま生成されるため、リリース前に必ず自分で編集してください。
+    - name: ハイフン区切りの小文字英数字で、VPMのパッケージ名として有効な形式にしてください。
+    - version: リリース時には必ずSemVer形式のバージョンに書き換えてください。
+    - displayName: VPMのUIに表示される名前です。日本語を含むとUnity Editorから参照できない場合があるので、英数字のみの名前を推奨します。
 - **GUID衝突時は破壊的に上書きします。** 複数の`.unitypackage`を渡した場合、同じGUIDのアセットが別パスに存在すると古いファイルは削除されます。意図した挙動か確認してから使ってください。
 - **互換性チェックは簡易的な静的検査です。** `Assets/`のハードコードやDLL内の`Application.dataPath`利用などを検出しますが、これは「壊れる可能性がある」ことを知らせるだけで、実際に動くかどうかの保証にはなりません。
 - **.metaの自動生成にはUnity Editorが必要になる場合があります。** 入力パッケージの中に`.meta`が欠けたアセットが含まれていると、ローカルにインストールされたUnityを起動して補完します。CI環境などUnityが無い場所で使う場合は、あらかじめ`.meta`が揃った状態のパッケージを使うか、事前にUnityをインストールしてパスを指定してください。
