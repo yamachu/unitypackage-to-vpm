@@ -69,7 +69,11 @@ PackageJsonGenerator.Generate(outputDirectory, merger.GetTopLevelFolderRelativeP
 if (MetaCompletenessChecker.HasMissingMeta(outputDirectory))
 {
     Log.Info("Some assets or folders are missing .meta files; invoking Unity to generate them.");
-    UnityMetaGenerator.Run(outputDirectory, unityPath);
+    if (!UnityMetaGenerator.Run(outputDirectory, unityPath))
+    {
+        Log.Error("Unity meta generation failed.");
+        return 1;
+    }
 }
 else
 {
