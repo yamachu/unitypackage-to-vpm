@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using UnityPackageToVpm.Logging;
 
 namespace UnityPackageToVpm.Unity;
@@ -65,10 +66,51 @@ internal static class UnityMetaGenerator
         }
         finally
         {
-            // Delete the symlink itself, not its target, before removing the rest of the throwaway project.
-            Directory.Delete(assetsLink);
-            Directory.Delete(tempProjectDir, recursive: true);
+            CleanupTempProject(tempProjectDir, assetsLink);
         }
+    }
+
+    private static void CleanupTempProject(string tempProjectDir, string assetsLink)
+    {
+        // Delete the symlink itself, not its target, before removing the rest of the throwaway project.
+        TryDeleteDirectory(assetsLink, recursive: false);
+        TryDeleteDirectory(tempProjectDir, recursive: true);
+    }
+
+    private static void TryDeleteDirectory(string path, bool recursive)
+    {
+        const int maxAttempts = 8;
+        const int retryDelayMs = 250;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                if (!Directory.Exists(path)) return;
+
+                Directory.Delete(path, recursive);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(retryDelayMs);
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(retryDelayMs);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Failed to clean up temporary directory '{path}': {ex.Message}");
+                return;
+            }
+        }
+
+        Log.Warn($"Failed to clean up temporary directory '{path}' after multiple attempts. You can remove it manually.");
     }
 
     private static string? FindUnityExecutable(string? unityPathOverride)
