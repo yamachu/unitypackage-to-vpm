@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    strategy:
+      matrix:
+        include:
+          - rid: osx-arm64
+            os: macos-latest
+          - rid: osx-x64
+            os: macos-latest
+          - rid: win-x64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      - name: Publish (NativeAOT)
+        run: dotnet publish src/UnityPackageToVpm/UnityPackageToVpm.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
+
+      - name: Archive
+        shell: bash
+        run: |
+          cd publish/${{ matrix.rid }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a ../../unitypackage-to-vpm-${{ matrix.rid }}.zip unitypackage-to-vpm.exe
+          else
+            zip ../../unitypackage-to-vpm-${{ matrix.rid }}.zip unitypackage-to-vpm
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unitypackage-to-vpm-${{ matrix.rid }}
+          path: unitypackage-to-vpm-${{ matrix.rid }}.zip
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          files: artifacts/*.zip
