@@ -6,6 +6,8 @@ using UnityPackageToVpm.Validation;
 using UnityPackageToVpm.Vpm;
 
 string? unityPath = null;
+string? previousPath = null;
+string? versionOverride = null;
 var positionalArgs = new List<string>();
 
 for (var i = 0; i < args.Length; i++)
@@ -28,12 +30,54 @@ for (var i = 0; i < args.Length; i++)
         continue;
     }
 
+    if (args[i] is "--previous" or "-p")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Log.Error($"Missing value for '{args[i]}'.");
+            return 1;
+        }
+
+        previousPath = args[++i];
+        continue;
+    }
+
+    if (args[i].StartsWith("--previous=", StringComparison.Ordinal))
+    {
+        previousPath = args[i]["--previous=".Length..];
+        continue;
+    }
+
+    if (args[i] == "--version")
+    {
+        if (i + 1 >= args.Length)
+        {
+            Log.Error($"Missing value for '{args[i]}'.");
+            return 1;
+        }
+
+        versionOverride = args[++i];
+        continue;
+    }
+
+    if (args[i].StartsWith("--version=", StringComparison.Ordinal))
+    {
+        versionOverride = args[i]["--version=".Length..];
+        continue;
+    }
+
     positionalArgs.Add(args[i]);
 }
 
 if (positionalArgs.Count < 2)
 {
-    Log.Error("Usage: unitypackage-to-vpm [--unity-path <path>] <output-vpm-directory> <input1.unitypackage> [input2.unitypackage ...]");
+    Log.Error("Usage: unitypackage-to-vpm [--unity-path <path>] [--previous <dir-or-zip>] [--version <semver>] <output-vpm-directory> <input1.unitypackage> [input2.unitypackage ...]");
+    return 1;
+}
+
+if (versionOverride is not null && previousPath is null)
+{
+    Log.Error("--version can only be used together with --previous.");
     return 1;
 }
 
@@ -47,6 +91,17 @@ foreach (var package in inputPackages)
         Log.Error($"Input package not found: {package}");
         return 1;
     }
+}
+
+using var previousPackage = previousPath is not null ? PreviousPackage.Load(previousPath) : null;
+if (previousPath is not null && previousPackage is null)
+{
+    return 1;
+}
+
+if (previousPackage is not null && Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any())
+{
+    Log.Warn($"Output directory '{outputDirectory}' is not empty; pre-existing files there won't be tracked and may be left stale.");
 }
 
 Directory.CreateDirectory(outputDirectory);
@@ -64,7 +119,21 @@ foreach (var packagePath in inputPackages)
 }
 
 Log.Info("Generating package.json...");
-PackageJsonGenerator.Generate(outputDirectory, merger.GetTopLevelFolderRelativePaths());
+if (previousPackage is not null)
+{
+    var previousPackageJsonPath = Path.Combine(previousPackage.RootDirectory, "package.json");
+    if (!PackageJsonGenerator.GenerateForUpdate(outputDirectory, previousPackageJsonPath, merger.GetTopLevelFolderRelativePaths(), versionOverride))
+    {
+        return 1;
+    }
+
+    var reusedCount = PreviousMetaReuser.Reuse(outputDirectory, previousPackage.RootDirectory, merger.KnownGuids);
+    Log.Info($"Reused {reusedCount} .meta file(s) from the previous version.");
+}
+else
+{
+    PackageJsonGenerator.Generate(outputDirectory, merger.GetTopLevelFolderRelativePaths());
+}
 
 if (MetaCompletenessChecker.HasMissingMeta(outputDirectory))
 {

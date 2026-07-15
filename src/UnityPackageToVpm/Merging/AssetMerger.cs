@@ -13,6 +13,13 @@ internal sealed class AssetMerger(string outputDirectory)
 
     private readonly Dictionary<string, GuidRegistryEntry> _registry = new();
 
+    /// <summary>
+    /// GUIDs already claimed by assets written from the source .unitypackage(s) so far.
+    /// Used by update mode to avoid re-introducing a stale GUID from a previous version's
+    /// .meta file that has since been reassigned to a different path.
+    /// </summary>
+    public IReadOnlyCollection<string> KnownGuids => _registry.Keys;
+
     public void Merge(string packageName, IReadOnlyList<ExtractedAsset> assets)
     {
         foreach (var asset in assets)

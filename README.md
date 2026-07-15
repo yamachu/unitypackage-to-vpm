@@ -9,11 +9,12 @@
 - プレースホルダの `package.json` を生成（`legacyFolders` も付与）
 - `.meta` が欠けているファイル/フォルダがあれば、ローカルのUnity Editorをバッチモードで起動して自動生成
 - `Assets/` のハードコードパスや `Application.dataPath` 参照、プリコンパイル済み `.dll` の混入を簡易的に検出して警告
+- `--previous` で前バージョンの変換済みパッケージを渡すと、GUIDとpackage.jsonの内容を引き継いだアップデート変換ができる
 
 ## 使い方
 
 ```
-unitypackage-to-vpm [--unity-path <path>] <output-vpm-directory> <input1.unitypackage> [input2.unitypackage ...]
+unitypackage-to-vpm [--unity-path <path>] [--previous <dir-or-zip>] [--version <semver>] <output-vpm-directory> <input1.unitypackage> [input2.unitypackage ...]
 ```
 
 例
@@ -39,6 +40,28 @@ unitypackage-to-vpm ./MyPackage ./base.unitypackage ./extra.unitypackage
 Linuxでの自動探索には対応していないので、Linux環境では `--unity-path` か `UNITY_PATH` を明示してください。
 
 対応するUnityが見つからない、またはすべての `.meta` が既に揃っている場合はUnityの起動自体をスキップします。
+
+### アップデートモード（`--previous`）
+
+`.meta` はこのツールが（またはUnityが）後付けで生成するため、通常の変換は毎回GUIDを新規発行します。同じアセットをバージョンアップして再変換すると、以前配布したパッケージとGUIDがずれてしまい、利用者のシーン/プレハブからの参照が壊れることがあります。
+
+`--previous` に前バージョンの変換済みパッケージ（出力ディレクトリ、または `package.json` をルートに含むVPM用の `.zip`）を渡すと、そのGUIDと `package.json` の内容を新しい出力に引き継ぎます。
+
+```
+unitypackage-to-vpm --previous ./MyPackage-v1 ./MyPackage-v2 ./NewAsset-v2.unitypackage
+```
+
+```
+unitypackage-to-vpm --previous ./MyPackage-v1.zip ./MyPackage-v2 ./NewAsset-v2.unitypackage
+```
+
+挙動
+
+- 新しい `.unitypackage` に同梱された `.meta`（GUID）が常に優先されます。前バージョンの `.meta` は、変換後にまだ `.meta` が無いパス（`package.json.meta`、`Runtime` フォルダやその配下のフォルダの `.meta`、元パッケージ側で `.meta` が欠けていたアセットなど）にのみ補完的に使われます。
+- 前バージョンの `.meta` が持つGUIDが、新パッケージ内の別パスで既に使われている場合はそのGUIDの引き継ぎをスキップし、警告を出します（Unityが新規GUIDを発行します）。
+- `package.json` は前バージョンの内容（`name` / `displayName` / `description` / `author` / `vpmDependencies` / 独自に追加したフィールドなど）をそのまま引き継ぎ、`version` のみ更新します。デフォルトではpatchバージョンを1つ上げます（`1.2.3` → `1.2.4`）。前バージョンの `version` が `major.minor.patch` 形式でない場合はエラーになるので、その場合は `--version <semver>` で明示してください。`legacyFolders` は前バージョンのエントリを引き継ぎつつ、今回の変換で判明した内容で上書き・追加します。
+- `--version` は `--previous` と併用時のみ有効です。
+- 出力ディレクトリに前バージョンには無かったアセットが含まれていた場合（前バージョンにのみ存在したファイル）は引き継がれません。出力ディレクトリは毎回新規作成する想定です。
 
 ## ビルド
 
