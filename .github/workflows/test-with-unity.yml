@@ -58,19 +58,16 @@ jobs:
           username: ${{ secrets.UNITY_EMAIL }}
           password: ${{ secrets.UNITY_PASSWORD }}
 
-      - name: Remove quarantine attribute (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
+      - name: Diagnose Unity Editor startup (open an empty project)
+        timeout-minutes: 5
+        env:
+          UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: |
-          # Unity's install.sh downloads the Editor via curl, so the .app bundle keeps
-          # the com.apple.quarantine xattr. Gatekeeper's first-launch validation of the
-          # whole (huge) bundle can then stall the Editor process for a very long time,
-          # which looks like a hang since callers WaitForExit() with no timeout.
-          app_root="${{ steps.unity-path.outputs.editor-path }}"
-          app_root="${app_root%/Contents/MacOS/Unity}"
-          xattr -dr com.apple.quarantine "$app_root" || true
+          mkdir -p /tmp/unity-probe/Assets
+          "$UNITY_PATH" -batchmode -nographics -quit -projectPath /tmp/unity-probe -logFile /dev/stdout
 
       - name: Run tests
+        timeout-minutes: 10
         env:
           UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: dotnet test tests/UnityPackageToVpm.Tests --configuration Release
