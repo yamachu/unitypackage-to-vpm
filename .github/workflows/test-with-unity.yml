@@ -1,23 +1,18 @@
 name: Test (with Unity)
 
-# Opt-in: installs a real Unity Editor (via the official Unity CLI,
-# https://docs.unity.com/en-us/unity-cli, used only to download/install the Editor — no
-# sign-in needed for that) and activates a Unity Personal license, so the tests that only
-# run their full assertions when Unity is available (see
-# tests/UnityPackageToVpm.Tests/UnityAvailability.cs) actually exercise batchmode instead
-# of falling back to the "Unity not found" branch.
+# Installs a real Unity Editor (via the official Unity CLI, https://docs.unity.com/en-us/unity-cli)
+# and activates a Unity Personal license, so the tests that only run their full assertions
+# when Unity is available (see tests/UnityPackageToVpm.Tests/UnityAvailability.cs) actually
+# exercise batchmode instead of falling back to the "Unity not found" branch.
 #
-# Licensing: a Unity CLI service-account identity has no Personal-license entitlement of
-# its own — `unity license activate --personal`, `--serial <personal serial>`, and loading
-# an existing .ulf offline via `-manualLicenseFile` (rejected with "Machine bindings don't
-# match" even for a real, currently-active .ulf) were all dead ends, confirmed on a clean
-# runner. What actually works, matching game-ci/unity-builder's approach
+# License activation follows game-ci/unity-builder's approach
 # (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh,
 # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/entrypoint.sh):
-# randomize /etc/machine-id, then activate live against Unity's servers using the classic
-# Editor flags `-serial -username -password` with a real human Unity ID (not a service
-# account) and the Personal-tier serial extracted from an existing .ulf. Requires the
-# UNITY_SERIAL / UNITY_EMAIL / UNITY_PASSWORD repository secrets.
+# randomize /etc/machine-id, then activate live against Unity's servers with the classic
+# Editor flags `-serial -username -password`, using a real human Unity ID (not a service
+# account — those have no Personal-license entitlement) and the Personal-tier serial
+# extracted from an existing .ulf. Requires the UNITY_SERIAL / UNITY_EMAIL / UNITY_PASSWORD
+# repository secrets.
 on:
   workflow_dispatch:
     inputs:
@@ -98,19 +93,6 @@ jobs:
             delay=$((delay * 2))
             attempt=$((attempt + 1))
           done
-
-      - name: Diagnose raw batchmode invocation
-        if: always()
-        run: |
-          mkdir -p /tmp/diag-project/Assets
-          set +e
-          "${{ steps.unity-path.outputs.path }}" -batchmode -nographics -quit \
-            -projectPath /tmp/diag-project -logFile /tmp/diag-project/unity.log
-          exit_code=$?
-          set -e
-          echo "exit code: $exit_code"
-          echo "--- unity.log ---"
-          cat /tmp/diag-project/unity.log || echo "(no log file was written)"
 
       - name: Run tests
         env:
