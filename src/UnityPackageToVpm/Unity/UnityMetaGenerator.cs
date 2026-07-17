@@ -150,6 +150,24 @@ internal static class UnityMetaGenerator
                 .FirstOrDefault(File.Exists);
         }
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            // Unlike the Windows/macOS Hub, Linux installs aren't consistently rooted at
+            // one path (manual tarball extracts, snap-style installs, etc.), so this is a
+            // best-effort guess at the Unity Hub's own default location; prefer
+            // --unity-path/UNITY_PATH explicitly if this doesn't find your install.
+            var home = Environment.GetEnvironmentVariable("HOME");
+            if (string.IsNullOrWhiteSpace(home)) return null;
+
+            var hubEditorsRoot = Path.Combine(home, "Unity", "Hub", "Editor");
+            if (!Directory.Exists(hubEditorsRoot)) return null;
+
+            return Directory.GetDirectories(hubEditorsRoot)
+                .OrderDescending(StringComparer.Ordinal)
+                .Select(versionDir => Path.Combine(versionDir, "Editor", "Unity"))
+                .FirstOrDefault(File.Exists);
+        }
+
         return null;
     }
 }

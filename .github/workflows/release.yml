@@ -17,6 +17,8 @@ jobs:
             os: macos-latest
           - rid: win-x64
             os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -24,6 +26,10 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
+
+      - name: Install NativeAOT prerequisites (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
       - name: Publish (NativeAOT)
         run: dotnet publish src/UnityPackageToVpm/UnityPackageToVpm.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}

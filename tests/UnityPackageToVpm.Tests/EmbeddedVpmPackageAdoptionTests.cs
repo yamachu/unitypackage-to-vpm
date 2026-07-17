@@ -204,7 +204,7 @@ public class EmbeddedVpmPackageAdoptionTests
             return;
         }
 
-        Assert.Equal(0, result.ExitCode);
+        Assert.True(result.ExitCode == 0, $"Expected success but got exit code {result.ExitCode}. Tool output:\n{result.Combined}");
         Assert.True(File.Exists(Path.Combine(workspace.OutputDirectory, "Runtime", "Scripts", "Foo.cs")));
 
         var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(workspace.OutputDirectory, "package.json")))!.AsObject();
