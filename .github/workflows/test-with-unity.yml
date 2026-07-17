@@ -64,7 +64,7 @@ jobs:
         run: |
           mkdir -p /tmp/diag-project/Assets
           set +e
-          "${{ steps.unity-path.outputs.path }}" -batchmode -nographics -quit \
+          "${{ steps.unity-path.outputs.editor-path }}" -batchmode -nographics -quit \
             -projectPath /tmp/diag-project -logFile /tmp/diag-project/unity.log
           exit_code=$?
           set -e
