@@ -1,21 +1,23 @@
 name: Test (with Unity)
 
-# Opt-in only (never runs on push/PR): installs a real Unity Editor via the official
-# Unity CLI (https://docs.unity.com/en-us/unity-cli) using a service-account login, so the
-# tests that only run their full assertions when Unity is available (see
+# Opt-in: installs a real Unity Editor (via the official Unity CLI,
+# https://docs.unity.com/en-us/unity-cli, used only to download/install the Editor — no
+# sign-in needed for that) and activates a Unity Personal license, so the tests that only
+# run their full assertions when Unity is available (see
 # tests/UnityPackageToVpm.Tests/UnityAvailability.cs) actually exercise batchmode instead
-# of falling back to the "Unity not found" branch. Requires the UNITY_CLIENT_ID /
-# UNITY_CLIENT_SECRET repository secrets (a Unity service account's client-id/secret pair,
-# see https://docs.unity.com/en-us/unity-cli/unity-cli-reference for `unity auth login`).
+# of falling back to the "Unity not found" branch.
 #
-# Licensing note: a service-account identity has no Personal-license entitlement of its
-# own — `unity license activate --personal` and `--serial <personal serial>` were both
-# rejected outright (confirmed on a clean runner, not a local-machine artifact). This
-# mirrors the well-known "Unity Personal can no longer be manually activated" limitation.
-# Instead, following the same approach as game-ci/unity-builder: a .ulf license file
-# generated once by an interactive human sign-in (Unity Hub) is stored as the
-# UNITY_LICENSE secret and loaded offline via `-manualLicenseFile`, with no network
-# activation call at CI time at all.
+# Licensing: a Unity CLI service-account identity has no Personal-license entitlement of
+# its own — `unity license activate --personal`, `--serial <personal serial>`, and loading
+# an existing .ulf offline via `-manualLicenseFile` (rejected with "Machine bindings don't
+# match" even for a real, currently-active .ulf) were all dead ends, confirmed on a clean
+# runner. What actually works, matching game-ci/unity-builder's approach
+# (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh,
+# https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/entrypoint.sh):
+# randomize /etc/machine-id, then activate live against Unity's servers using the classic
+# Editor flags `-serial -username -password` with a real human Unity ID (not a service
+# account) and the Personal-tier serial extracted from an existing .ulf. Requires the
+# UNITY_SERIAL / UNITY_EMAIL / UNITY_PASSWORD repository secrets.
 on:
   workflow_dispatch:
     inputs:
@@ -45,13 +47,9 @@ jobs:
       - name: Install Unity CLI
         run: curl -fsSL https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh | UNITY_CLI_CHANNEL=beta bash
 
-      - name: Sign in and install Unity Editor
-        env:
-          UNITY_CLIENT_ID: ${{ secrets.UNITY_CLIENT_ID }}
-          UNITY_CLIENT_SECRET: ${{ secrets.UNITY_CLIENT_SECRET }}
+      - name: Install Unity Editor
         run: |
           export PATH="$HOME/.unity/bin:$PATH"
-          unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --non-interactive
           unity install "${{ github.event.inputs.unity_version || '2022.3.22f1' }}" -y --accept-eula --non-interactive
           unity editors -i
 
@@ -65,22 +63,41 @@ jobs:
           fi
           echo "path=$editor_path" >> "$GITHUB_OUTPUT"
 
-      - name: Apply .ulf license file (offline, no network activation)
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+      # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/entrypoint.sh
+      - name: Randomize machine-id
         run: |
-          ulf_path="$RUNNER_TEMP/Unity_lic.ulf"
-          printf '%s' "$UNITY_LICENSE" > "$ulf_path"
-          mkdir -p /tmp/license-project/Assets
-          set +e
-          "${{ steps.unity-path.outputs.path }}" -batchmode -nographics -quit \
-            -manualLicenseFile "$ulf_path" \
-            -projectPath /tmp/license-project -logFile /tmp/license-project/license-apply.log
-          exit_code=$?
-          set -e
-          echo "exit code: $exit_code"
-          cat /tmp/license-project/license-apply.log || echo "(no log file was written)"
-          rm -f "$ulf_path"
+          new_id=$(python3 -c "import uuid; print(uuid.uuid4().hex)")
+          echo "$new_id" | sudo tee /etc/machine-id
+          cat /etc/machine-id
+
+      # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh
+      - name: Activate Unity Personal license
+        env:
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          mkdir -p /tmp/blank-project/Assets
+          attempt=1
+          delay=15
+          until "${{ steps.unity-path.outputs.path }}" \
+            -logFile /dev/stdout \
+            -quit \
+            -serial "$UNITY_SERIAL" \
+            -username "$UNITY_EMAIL" \
+            -password "$UNITY_PASSWORD" \
+            -projectPath /tmp/blank-project \
+            -batchmode
+          do
+            if [ "$attempt" -ge 5 ]; then
+              echo "License activation failed after $attempt attempts" >&2
+              exit 1
+            fi
+            echo "Activation attempt $attempt failed, retrying in ${delay}s..."
+            sleep "$delay"
+            delay=$((delay * 2))
+            attempt=$((attempt + 1))
+          done
 
       - name: Diagnose raw batchmode invocation
         if: always()
