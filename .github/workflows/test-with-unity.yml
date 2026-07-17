@@ -46,30 +46,17 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: yamachu/unity-cli-actions/setup-unity-cli@452a3f180f036b589aed7d27073ae335f87fea71
+        uses: yamachu/unity-cli-actions/setup-unity-cli@v1
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: yamachu/unity-cli-actions/activate-unity-license@452a3f180f036b589aed7d27073ae335f87fea71
+        uses: yamachu/unity-cli-actions/activate-unity-license@v1
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
           username: ${{ secrets.UNITY_EMAIL }}
           password: ${{ secrets.UNITY_PASSWORD }}
-
-      - name: Diagnose raw batchmode invocation
-        if: always()
-        run: |
-          mkdir -p /tmp/diag-project/Assets
-          set +e
-          "${{ steps.unity-path.outputs.editor-path }}" -batchmode -nographics -quit \
-            -projectPath /tmp/diag-project -logFile /tmp/diag-project/unity.log
-          exit_code=$?
-          set -e
-          echo "exit code: $exit_code"
-          echo "--- unity.log ---"
-          cat /tmp/diag-project/unity.log || echo "(no log file was written)"
 
       - name: Run tests
         env:
