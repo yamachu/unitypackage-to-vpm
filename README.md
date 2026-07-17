@@ -7,6 +7,7 @@
 - `.unitypackage` を展開し、`Assets/` プレフィックスを取り除いて `Packages/<name>/Runtime/` 配下に再配置
 - 複数の `.unitypackage` を指定した場合、順番にマージ（共通マテリアルを使用し、その後アバター依存のパッケージを追加するようなアセットを想定しています）
 - プレースホルダの `package.json` を生成（`legacyFolders` も付与）
+- 入力の `.unitypackage` がすでに `Assets/<パッケージID>/` 直下に完全な VPM 用 `package.json` を含む形（vpm互換レイアウト）であれば自動検知し、そのフォルダの中身をそのまま出力ルートに展開（`Packages/<name>/Runtime/` へのラップなし）。埋め込まれた `package.json` をそのまま採用し、`legacyFolders` に旧 `Assets/<id>` のGUIDを自動追加
 - `.meta` が欠けているファイル/フォルダがあれば、ローカルのUnity Editorをバッチモードで起動して自動生成
 - `Assets/` のハードコードパスや `Application.dataPath` 参照、プリコンパイル済み `.dll` の混入を簡易的に検出して警告
 - `--previous` で前バージョンの変換済みパッケージを渡すと、GUIDとpackage.jsonの内容を引き継いだアップデート変換ができる
@@ -63,6 +64,16 @@ unitypackage-to-vpm --previous ./MyPackage-v1.zip ./MyPackage-v2 ./NewAsset-v2.u
 - `--version` は `--previous` と併用時のみ有効です。
 - 出力ディレクトリに前バージョンには無かったアセットが含まれていた場合（前バージョンにのみ存在したファイル）は引き継がれません。出力ディレクトリは毎回新規作成する想定です。
 
+### vpm互換レイアウトの自動採用（adopt mode）
+
+配布元がすでに `Assets/dev.yamachu.example/` のように、パッケージIDと同名のフォルダ直下に本物のVPM用 `package.json`（`Editor/`・`Runtime/`・asmdef・`.meta` 一式込み）を用意した状態で `.unitypackage` をエクスポートしているケースがあります。この場合、フラグ不要で自動的に検知し、そのフォルダの**中身**を出力ルートへそのまま展開します（`Packages/<name>/Runtime/` へのラップは行いません）。
+
+- 埋め込まれた `package.json` がそのまま出力の `package.json` になります（プレースホルダ生成はスキップ）。`legacyFolders` に既存のエントリが無ければ `"Assets/<id>": "<フォルダのGUID>"` を自動追加します。
+- `--version <semver>` は `--previous` 無しでも埋め込み `version` を上書きできます。
+- `--previous` を併用した場合、前バージョンの `package.json` の内容は無視されます（埋め込み側が優先）。`.meta` の引き継ぎ（`PreviousMetaReuser`）自体は通常どおり行われます。
+- 展開後のアセットが対象フォルダの外にもある、候補となるフォルダが複数ある、複数入力パッケージ間でこの判定が食い違う、といった場合はレイアウトが曖昧なため変換を中止しエラーになります。
+- `Samples~` はUnityが `.unitypackage` に含めないため、`package.json` の `samples` に定義されたパスが出力に存在しない場合は警告のみ出し、手動での追加を促します。
+
 ## ビルド
 
 ```
@@ -70,6 +81,16 @@ dotnet publish src/UnityPackageToVpm/UnityPackageToVpm.csproj -c Release -r <RID
 ```
 
 `-c Release` でビルドするとNativeAOTでコンパイルされます（`osx-arm64` / `osx-x64` / `win-x64` で動作確認済み。Linux向けのビルド/リリースは現時点で未提供）。
+
+## テスト
+
+```
+dotnet test tests/UnityPackageToVpm.Tests
+```
+
+- 変換ロジックの大半のテストは、実行中に合成した `.unitypackage`（`TestUnityPackageBuilder`）に対してビルド済みCLIをサブプロセスとして起動するブラックボックス方式です。実際のUnity Editorは不要です（`.meta` を揃えたフィクスチャしか使わないため）。
+- 生成された `package.json` の妥当性を `vpm` CLI（`dotnet tool install --global vrchat.vpm.cli` で導入できるdotnetツール）の `vpm check package <path>` で実際に検証するテストが1件あります。`vpm` がPATH上に無い環境ではこのテストは検証をスキップして成功扱いになります。
+- Unityが実際に必要になる「通常レイアウト（埋め込みpackage.jsonなし）」の回帰テストは、ローカルにUnity Editorが検出できる場合のみ変換の成功を検証し、検出できない環境（多くのCI含む）では「Unityが見つからずエラーになる」という正しい失敗挙動を検証します。CI(GitHub Actions)ではUnityのインストールは行っていません。
 
 ## 注意点
 
