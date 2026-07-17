@@ -59,6 +59,19 @@ jobs:
           password: ${{ secrets.UNITY_PASSWORD }}
           license-ulf: ${{ secrets.UNITY_LICENSE_ULF }} # Required on macOS only
 
+      - name: Diagnose raw batchmode invocation
+        if: always()
+        run: |
+          mkdir -p /tmp/diag-project/Assets
+          set +e
+          "${{ steps.unity-path.outputs.path }}" -batchmode -nographics -quit \
+            -projectPath /tmp/diag-project -logFile /tmp/diag-project/unity.log
+          exit_code=$?
+          set -e
+          echo "exit code: $exit_code"
+          echo "--- unity.log ---"
+          cat /tmp/diag-project/unity.log || echo "(no log file was written)"
+
       - name: Run tests
         env:
           UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
