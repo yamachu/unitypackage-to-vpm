@@ -87,7 +87,7 @@ jobs:
             -username "$UNITY_EMAIL" \
             -password "$UNITY_PASSWORD" \
             -projectPath /tmp/blank-project \
-            -batchmode
+            -batchmode -nographics
           do
             if [ "$attempt" -ge 5 ]; then
               echo "License activation failed after $attempt attempts" >&2
