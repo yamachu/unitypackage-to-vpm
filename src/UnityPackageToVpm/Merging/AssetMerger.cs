@@ -7,7 +7,7 @@ namespace UnityPackageToVpm.Merging;
 /// Writes extracted assets into the output directory, tracking GUIDs across packages
 /// so later packages can overwrite earlier ones in a controlled, order-dependent way.
 /// </summary>
-internal sealed class AssetMerger(string outputDirectory)
+internal sealed class AssetMerger(string outputDirectory, string targetSubfolder = AssetMerger.RuntimeFolderName)
 {
     public const string RuntimeFolderName = "Runtime";
 
@@ -77,7 +77,7 @@ internal sealed class AssetMerger(string outputDirectory)
     }
 
     private string ResolveTargetPath(string relativePath) =>
-        Path.Combine(outputDirectory, RuntimeFolderName, relativePath);
+        Path.Combine(outputDirectory, targetSubfolder, relativePath);
 
     /// <summary>
     /// Topmost folder-type assets that were explicitly present (with their own GUID) in

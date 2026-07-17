@@ -75,12 +75,6 @@ if (positionalArgs.Count < 2)
     return 1;
 }
 
-if (versionOverride is not null && previousPath is null)
-{
-    Log.Error("--version can only be used together with --previous.");
-    return 1;
-}
-
 var outputDirectory = Path.GetFullPath(positionalArgs[0]);
 var inputPackages = positionalArgs[1..].ToArray();
 
@@ -106,7 +100,9 @@ if (previousPackage is not null && Directory.Exists(outputDirectory) && Director
 
 Directory.CreateDirectory(outputDirectory);
 
-var merger = new AssetMerger(outputDirectory);
+AssetMerger? merger = null;
+EmbeddedVpmPackage? adopted = null;
+var adoptedDecided = false;
 
 foreach (var packagePath in inputPackages)
 {
@@ -115,14 +111,61 @@ foreach (var packagePath in inputPackages)
 
     var assets = UnityPackageExtractor.Extract(packagePath);
     CompatibilityScanner.Scan(packageName, assets);
-    merger.Merge(packageName, assets);
+
+    if (!EmbeddedVpmPackageDetector.TryDetect(packageName, assets, out var embedded))
+    {
+        return 1;
+    }
+
+    if (!adoptedDecided)
+    {
+        adopted = embedded;
+        adoptedDecided = true;
+        merger = new AssetMerger(outputDirectory, adopted is null ? AssetMerger.RuntimeFolderName : "");
+    }
+    else if (embedded?.RootFolderName != adopted?.RootFolderName)
+    {
+        Log.Error($"'{packageName}' disagrees with earlier input(s) on embedded VPM package layout ('{embedded?.RootFolderName ?? "none"}' vs '{adopted?.RootFolderName ?? "none"}'); can't merge these into a single output.");
+        return 1;
+    }
+
+    if (adopted is not null)
+    {
+        assets = EmbeddedVpmPackageDetector.Rebase(assets, adopted.RootFolderName);
+    }
+
+    merger!.Merge(packageName, assets);
+}
+
+if (adopted is null && versionOverride is not null && previousPackage is null)
+{
+    Log.Error("--version can only be used together with --previous.");
+    return 1;
 }
 
 Log.Info("Generating package.json...");
-if (previousPackage is not null)
+if (adopted is not null)
+{
+    if (previousPackage is not null)
+    {
+        Log.Info("Input already contains an embedded VPM package.json; ignoring --previous's package.json (only reusing its .meta files).");
+    }
+
+    if (!PackageJsonGenerator.FinalizeAdopted(outputDirectory, adopted.RootFolderName, adopted.RootFolderGuid, versionOverride))
+    {
+        return 1;
+    }
+
+    if (previousPackage is not null)
+    {
+        var reusedCount = PreviousMetaReuser.Reuse(outputDirectory, previousPackage.RootDirectory, merger!.KnownGuids);
+        Log.Info($"Reused {reusedCount} .meta file(s) from the previous version.");
+    }
+}
+else if (previousPackage is not null)
 {
     var previousPackageJsonPath = Path.Combine(previousPackage.RootDirectory, "package.json");
-    if (!PackageJsonGenerator.GenerateForUpdate(outputDirectory, previousPackageJsonPath, merger.GetTopLevelFolderRelativePaths(), versionOverride))
+    if (!PackageJsonGenerator.GenerateForUpdate(outputDirectory, previousPackageJsonPath, merger!.GetTopLevelFolderRelativePaths(), versionOverride))
     {
         return 1;
     }
@@ -132,7 +175,7 @@ if (previousPackage is not null)
 }
 else
 {
-    PackageJsonGenerator.Generate(outputDirectory, merger.GetTopLevelFolderRelativePaths());
+    PackageJsonGenerator.Generate(outputDirectory, merger!.GetTopLevelFolderRelativePaths());
 }
 
 if (MetaCompletenessChecker.HasMissingMeta(outputDirectory))
