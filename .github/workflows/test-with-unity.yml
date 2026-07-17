@@ -52,7 +52,7 @@ jobs:
         run: |
           export PATH="$HOME/.unity/bin:$PATH"
           unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --non-interactive
-          unity install "${{ github.event.inputs.unity_version || 'lts' }}" -y --accept-eula --non-interactive
+          unity install "${{ github.event.inputs.unity_version || '2022.3.22f1' }}" -y --accept-eula --non-interactive
           unity editors -i
 
       - name: Locate installed Unity executable
