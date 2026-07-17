@@ -36,9 +36,10 @@ unitypackage-to-vpm ./MyPackage ./base.unitypackage ./extra.unitypackage
 
 1. `--unity-path <path>` / `-u <path>` / `--unity-path=<path>`
 2. `UNITY_PATH` 環境変数
-3. Unity Hubの標準インストール先を自動探索（Windows/macOSのみ、複数バージョンがあれば最新のものを使用）
-
-Linuxでの自動探索には対応していないので、Linux環境では `--unity-path` か `UNITY_PATH` を明示してください。
+3. Unity Hubの標準インストール先を自動探索（複数バージョンがあれば最新のものを使用）
+    - Windows: `C:\Program Files\Unity\Hub\Editor`
+    - macOS: `/Applications/Unity/Hub/Editor`
+    - Linux: `$HOME/Unity/Hub/Editor`（Unity Hub for Linuxのデフォルト設置先を想定したベストエフォートの探索です。Linuxはインストール方法が統一されておらず手動展開されるケースも多いため、見つからない場合は `--unity-path` か `UNITY_PATH` を明示してください）
 
 対応するUnityが見つからない、またはすべての `.meta` が既に揃っている場合はUnityの起動自体をスキップします。
 
@@ -80,7 +81,7 @@ unitypackage-to-vpm --previous ./MyPackage-v1.zip ./MyPackage-v2 ./NewAsset-v2.u
 dotnet publish src/UnityPackageToVpm/UnityPackageToVpm.csproj -c Release -r <RID> -o publish/<RID>
 ```
 
-`-c Release` でビルドするとNativeAOTでコンパイルされます（`osx-arm64` / `osx-x64` / `win-x64` で動作確認済み。Linux向けのビルド/リリースは現時点で未提供）。
+`-c Release` でビルドするとNativeAOTでコンパイルされます（`osx-arm64` / `osx-x64` / `win-x64` / `linux-x64` で動作確認済み）。Linux向けにビルドする場合は `clang` と `zlib1g-dev`（またはディストリビューションの同等パッケージ）が必要です。
 
 ## テスト
 
