@@ -5,14 +5,9 @@ name: Test (with Unity)
 # when Unity is available (see tests/UnityPackageToVpm.Tests/UnityAvailability.cs) actually
 # exercise batchmode instead of falling back to the "Unity not found" branch.
 #
-# License activation follows game-ci/unity-builder's approach
-# (https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh,
-# https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/entrypoint.sh):
-# randomize /etc/machine-id, then activate live against Unity's servers with the classic
-# Editor flags `-serial -username -password`, using a real human Unity ID (not a service
-# account — those have no Personal-license entitlement) and the Personal-tier serial
-# extracted from an existing .ulf. Requires the UNITY_SERIAL / UNITY_EMAIL / UNITY_PASSWORD
-# repository secrets.
+# The Unity-specific steps live in .github/actions/setup-unity-cli and
+# .github/actions/activate-unity-license. Requires the UNITY_SERIAL / UNITY_EMAIL /
+# UNITY_PASSWORD repository secrets.
 on:
   workflow_dispatch:
     inputs:
@@ -37,62 +32,21 @@ jobs:
           dotnet tool install --global vrchat.vpm.cli
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
-      - name: Install Unity CLI
-        run: curl -fsSL https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.sh | UNITY_CLI_CHANNEL=beta bash
-
-      - name: Install Unity Editor
-        run: |
-          export PATH="$HOME/.unity/bin:$PATH"
-          unity install "${{ github.event.inputs.unity_version || '2022.3.22f1' }}" -y --accept-eula --non-interactive
-          unity editors -i
-
-      - name: Locate installed Unity executable
+      - name: Setup Unity CLI
         id: unity-path
-        run: |
-          editor_path=$(find "$HOME/Unity/Hub/Editor" -maxdepth 3 -type f -name Unity | head -1)
-          if [ -z "$editor_path" ]; then
-            echo "Could not find an installed Unity executable under \$HOME/Unity/Hub/Editor" >&2
-            exit 1
-          fi
-          echo "path=$editor_path" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/setup-unity-cli
+        with:
+          unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
-      # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/entrypoint.sh
-      - name: Randomize machine-id
-        run: |
-          new_id=$(python3 -c "import uuid; print(uuid.uuid4().hex)")
-          echo "$new_id" | sudo tee /etc/machine-id
-          cat /etc/machine-id
-
-      # https://github.com/game-ci/unity-builder/blob/main/dist/platforms/ubuntu/steps/activate.sh
       - name: Activate Unity Personal license
-        env:
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        run: |
-          mkdir -p /tmp/blank-project/Assets
-          attempt=1
-          delay=15
-          until "${{ steps.unity-path.outputs.path }}" \
-            -logFile /dev/stdout \
-            -quit \
-            -serial "$UNITY_SERIAL" \
-            -username "$UNITY_EMAIL" \
-            -password "$UNITY_PASSWORD" \
-            -projectPath /tmp/blank-project \
-            -batchmode -nographics
-          do
-            if [ "$attempt" -ge 5 ]; then
-              echo "License activation failed after $attempt attempts" >&2
-              exit 1
-            fi
-            echo "Activation attempt $attempt failed, retrying in ${delay}s..."
-            sleep "$delay"
-            delay=$((delay * 2))
-            attempt=$((attempt + 1))
-          done
+        uses: ./.github/actions/activate-unity-license
+        with:
+          editor-path: ${{ steps.unity-path.outputs.editor-path }}
+          serial: ${{ secrets.UNITY_SERIAL }}
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Run tests
         env:
-          UNITY_PATH: ${{ steps.unity-path.outputs.path }}
+          UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: dotnet test tests/UnityPackageToVpm.Tests --configuration Release
