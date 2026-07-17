@@ -7,6 +7,15 @@ name: Test (with Unity)
 # of falling back to the "Unity not found" branch. Requires the UNITY_CLIENT_ID /
 # UNITY_CLIENT_SECRET repository secrets (a Unity service account's client-id/secret pair,
 # see https://docs.unity.com/en-us/unity-cli/unity-cli-reference for `unity auth login`).
+#
+# Licensing note: a service-account identity has no Personal-license entitlement of its
+# own — `unity license activate --personal` and `--serial <personal serial>` were both
+# rejected outright (confirmed on a clean runner, not a local-machine artifact). This
+# mirrors the well-known "Unity Personal can no longer be manually activated" limitation.
+# Instead, following the same approach as game-ci/unity-builder: a .ulf license file
+# generated once by an interactive human sign-in (Unity Hub) is stored as the
+# UNITY_LICENSE secret and loaded offline via `-manualLicenseFile`, with no network
+# activation call at CI time at all.
 on:
   workflow_dispatch:
     inputs:
@@ -40,25 +49,11 @@ jobs:
         env:
           UNITY_CLIENT_ID: ${{ secrets.UNITY_CLIENT_ID }}
           UNITY_CLIENT_SECRET: ${{ secrets.UNITY_CLIENT_SECRET }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         run: |
           export PATH="$HOME/.unity/bin:$PATH"
-          # --no-store keeps the session in-process only, so a later `unity` invocation
-          # (a separate process) sees no session at all ("Sign in with `unity auth login`").
-          # Persist to the keyring instead — the earlier keyring-write failure was specific
-          # to a bare local Docker container without a keyring/secret-service backend; a
-          # real GitHub Actions VM may have one available.
           unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --non-interactive
-          # `--personal` was rejected outright for a service-account identity ("Sign in with
-          # `unity auth login`, or pass --serial..." — Personal is tied to a human Unity ID).
-          # Activate with the serial extracted from an existing local .ulf instead. This is a
-          # clean CI runner (no pre-existing .ulf), unlike the local-machine test that hit
-          # "Token not found in cache" — that error may have been caused by a conflicting
-          # already-loaded local license context.
-          unity license activate --serial "$UNITY_SERIAL" --accept-eula --non-interactive
           unity install "${{ github.event.inputs.unity_version || 'lts' }}" -y --accept-eula --non-interactive
           unity editors -i
-          unity license
 
       - name: Locate installed Unity executable
         id: unity-path
@@ -69,6 +64,23 @@ jobs:
             exit 1
           fi
           echo "path=$editor_path" >> "$GITHUB_OUTPUT"
+
+      - name: Apply .ulf license file (offline, no network activation)
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          ulf_path="$RUNNER_TEMP/Unity_lic.ulf"
+          printf '%s' "$UNITY_LICENSE" > "$ulf_path"
+          mkdir -p /tmp/license-project/Assets
+          set +e
+          "${{ steps.unity-path.outputs.path }}" -batchmode -nographics -quit \
+            -manualLicenseFile "$ulf_path" \
+            -projectPath /tmp/license-project -logFile /tmp/license-project/license-apply.log
+          exit_code=$?
+          set -e
+          echo "exit code: $exit_code"
+          cat /tmp/license-project/license-apply.log || echo "(no log file was written)"
+          rm -f "$ulf_path"
 
       - name: Diagnose raw batchmode invocation
         if: always()
