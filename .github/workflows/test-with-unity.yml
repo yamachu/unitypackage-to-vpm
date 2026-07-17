@@ -42,10 +42,12 @@ jobs:
           UNITY_CLIENT_SECRET: ${{ secrets.UNITY_CLIENT_SECRET }}
         run: |
           export PATH="$HOME/.unity/bin:$PATH"
-          # Login + install run in one step/shell so the (unpersisted, --no-store)
-          # service-account session from `auth login` is still in effect for the
-          # `install` call that follows it.
-          unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --no-store --non-interactive
+          # --no-store keeps the session in-process only, so a later `unity` invocation
+          # (a separate process) sees no session at all ("Sign in with `unity auth login`").
+          # Persist to the keyring instead — the earlier keyring-write failure was specific
+          # to a bare local Docker container without a keyring/secret-service backend; a
+          # real GitHub Actions VM may have one available.
+          unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --non-interactive
           # The service-account identity itself has no entitlements by default (confirmed via
           # the raw batchmode diagnostic: "Found 0 entitlement groups and 0 free entitlements").
           # Personal is a free, self-service license, so explicitly request/attach it here.
