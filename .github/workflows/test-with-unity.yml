@@ -18,7 +18,18 @@ on:
 
 jobs:
   test-with-unity:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rid: osx-arm64
+            os: macos-latest
+          - rid: osx-x64
+            os: macos-latest
+          - rid: win-x64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -34,12 +45,12 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: ./.github/actions/setup-unity-cli
+        uses: yamachu/unity-cli-actions/setup-unity-cli@31700ca53973d240dd7274311a9082e11084d0c7
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: ./.github/actions/activate-unity-license
+        uses: yamachu/unity-cli-actions/activate-unity-license@31700ca53973d240dd7274311a9082e11084d0c7
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
