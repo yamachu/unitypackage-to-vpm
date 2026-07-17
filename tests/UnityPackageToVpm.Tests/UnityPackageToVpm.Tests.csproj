@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>UnityPackageToVpm.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exercised as a black-box CLI, not linked against: this pulls its build output
+         (unitypackage-to-vpm.dll and deps) alongside the test assembly so tests can
+         invoke it with `dotnet <dll> ...args` without a separate publish step. -->
+    <ProjectReference Include="..\..\src\UnityPackageToVpm\UnityPackageToVpm.csproj" />
+  </ItemGroup>
+
+</Project>

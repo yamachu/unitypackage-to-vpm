@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -13,6 +14,15 @@ namespace UnityPackageToVpm.Vpm;
 /// </summary>
 internal static class PackageJsonGenerator
 {
+    // Round-tripped package.json is user-authored text (semver ranges like ">=1.0.0 <2.0.0",
+    // possibly non-ASCII displayName/description); avoid System.Text.Json's default
+    // HTML-safe escaping mangling it into >-style sequences.
+    private static readonly JsonSerializerOptions RoundTripOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
+
     public static void Generate(string outputDirectory, IReadOnlyList<string> legacyFolderRelativePaths)
     {
         var packageName = SanitizePackageName(Path.GetFileName(Path.TrimEndingDirectorySeparator(outputDirectory)));
@@ -96,8 +106,78 @@ internal static class PackageJsonGenerator
 
         root["legacyFolders"] = mergedLegacyFolders;
 
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        File.WriteAllText(Path.Combine(outputDirectory, "package.json"), root.ToJsonString(options));
+        File.WriteAllText(Path.Combine(outputDirectory, "package.json"), root.ToJsonString(RoundTripOptions));
+        return true;
+    }
+
+    /// <summary>
+    /// Adopt mode: the output's package.json was already written verbatim from the source
+    /// .unitypackage's embedded manifest during the merge step. This only applies the
+    /// minimal, additive touch-ups a plain copy can't provide: an explicit --version
+    /// override, and a legacyFolders entry for the old Assets/&lt;id&gt; install path (so
+    /// users migrating from the legacy layout get it cleaned up automatically). The file
+    /// is left untouched if neither applies.
+    /// </summary>
+    public static bool FinalizeAdopted(string outputDirectory, string rootFolderName, string? rootFolderGuid, string? versionOverride)
+    {
+        var packageJsonPath = Path.Combine(outputDirectory, "package.json");
+        if (!File.Exists(packageJsonPath))
+        {
+            Log.Error($"Expected an embedded package.json at '{packageJsonPath}' but none was found.");
+            return false;
+        }
+
+        var root = JsonNode.Parse(File.ReadAllText(packageJsonPath))?.AsObject();
+        if (root is null)
+        {
+            Log.Error($"Could not parse embedded package.json at '{packageJsonPath}'.");
+            return false;
+        }
+
+        var changed = false;
+
+        if (versionOverride is not null && root["version"]?.GetValue<string>() != versionOverride)
+        {
+            Log.Info($"Overriding embedded package.json version ({root["version"]?.GetValue<string>() ?? "unknown"} -> {versionOverride}).");
+            root["version"] = versionOverride;
+            changed = true;
+        }
+
+        var legacyFolderKey = $"Assets/{rootFolderName}";
+        var legacyFolders = root["legacyFolders"]?.AsObject();
+        if (legacyFolders is null || legacyFolders[legacyFolderKey] is null)
+        {
+            if (rootFolderGuid is null)
+            {
+                Log.Warn($"Couldn't determine the guid for 'Assets/{rootFolderName}'; skipping automatic legacyFolders entry.");
+            }
+            else
+            {
+                legacyFolders ??= new JsonObject();
+                legacyFolders[legacyFolderKey] = rootFolderGuid;
+                root["legacyFolders"] = legacyFolders;
+                Log.Info($"Added legacyFolders entry for '{legacyFolderKey}' (guid {rootFolderGuid}).");
+                changed = true;
+            }
+        }
+
+        if (root["samples"]?.AsArray() is { } samples)
+        {
+            foreach (var sample in samples)
+            {
+                var samplePath = sample?["path"]?.GetValue<string>();
+                if (samplePath is not null && !File.Exists(Path.Combine(outputDirectory, samplePath)) && !Directory.Exists(Path.Combine(outputDirectory, samplePath)))
+                {
+                    Log.Warn($"package.json references sample path '{samplePath}' which isn't present in the output (Unity doesn't export '~' folders into .unitypackage files; you'll need to add it back manually).");
+                }
+            }
+        }
+
+        if (changed)
+        {
+            File.WriteAllText(packageJsonPath, root.ToJsonString(RoundTripOptions));
+        }
+
         return true;
     }
 
