@@ -46,12 +46,12 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: yamachu/unity-cli-actions/setup-unity-cli@5839dd24ac5c04a1623e452aae03834f96141b29
+        uses: yamachu/unity-cli-actions/setup-unity-cli@86f06fa3d1d01dc79533f1b54981ff53d84b0001
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: yamachu/unity-cli-actions/activate-unity-license@5839dd24ac5c04a1623e452aae03834f96141b29
+        uses: yamachu/unity-cli-actions/activate-unity-license@86f06fa3d1d01dc79533f1b54981ff53d84b0001
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
