@@ -40,6 +40,7 @@ jobs:
         env:
           UNITY_CLIENT_ID: ${{ secrets.UNITY_CLIENT_ID }}
           UNITY_CLIENT_SECRET: ${{ secrets.UNITY_CLIENT_SECRET }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         run: |
           export PATH="$HOME/.unity/bin:$PATH"
           # --no-store keeps the session in-process only, so a later `unity` invocation
@@ -48,10 +49,13 @@ jobs:
           # to a bare local Docker container without a keyring/secret-service backend; a
           # real GitHub Actions VM may have one available.
           unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --non-interactive
-          # The service-account identity itself has no entitlements by default (confirmed via
-          # the raw batchmode diagnostic: "Found 0 entitlement groups and 0 free entitlements").
-          # Personal is a free, self-service license, so explicitly request/attach it here.
-          unity license activate --personal --accept-eula --non-interactive
+          # `--personal` was rejected outright for a service-account identity ("Sign in with
+          # `unity auth login`, or pass --serial..." — Personal is tied to a human Unity ID).
+          # Activate with the serial extracted from an existing local .ulf instead. This is a
+          # clean CI runner (no pre-existing .ulf), unlike the local-machine test that hit
+          # "Token not found in cache" — that error may have been caused by a conflicting
+          # already-loaded local license context.
+          unity license activate --serial "$UNITY_SERIAL" --accept-eula --non-interactive
           unity install "${{ github.event.inputs.unity_version || 'lts' }}" -y --accept-eula --non-interactive
           unity editors -i
           unity license
