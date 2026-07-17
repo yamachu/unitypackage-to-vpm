@@ -46,7 +46,7 @@ jobs:
           # service-account session from `auth login` is still in effect for the
           # `install` call that follows it.
           unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --no-store --non-interactive
-          unity install "${{ github.event.inputs.unity_version }}" -y --accept-eula --non-interactive
+          unity install "${{ github.event.inputs.unity_version || 'lts' }}" -y --accept-eula --non-interactive
           unity editors -i
           unity license
 
