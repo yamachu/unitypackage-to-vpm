@@ -32,6 +32,16 @@ internal static class UnityAvailability
                 Directory.GetDirectories(hubEditorsRoot).Any(v => File.Exists(Path.Combine(v, "Unity.app", "Contents", "MacOS", "Unity")));
         }
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            var home = Environment.GetEnvironmentVariable("HOME");
+            if (string.IsNullOrWhiteSpace(home)) return false;
+
+            var hubEditorsRoot = Path.Combine(home, "Unity", "Hub", "Editor");
+            return Directory.Exists(hubEditorsRoot) &&
+                Directory.GetDirectories(hubEditorsRoot).Any(v => File.Exists(Path.Combine(v, "Editor", "Unity")));
+        }
+
         return false;
     }
 }

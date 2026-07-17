@@ -16,7 +16,15 @@ internal static class CliRunner
 {
     private static readonly string DllPath = Path.Combine(AppContext.BaseDirectory, "unitypackage-to-vpm.dll");
 
-    public static CliResult Run(params string[] args)
+    public static CliResult Run(params string[] args) => RunWithEnvironment(null, args);
+
+    /// <summary>
+    /// Like <see cref="Run"/>, but with environment variable overrides applied to the
+    /// child process first — e.g. to point HOME at a fake Unity Hub layout, or clear
+    /// UNITY_PATH so auto-detection logic is actually exercised instead of shortcut.
+    /// A null value removes the variable instead of setting it.
+    /// </summary>
+    public static CliResult RunWithEnvironment(IReadOnlyDictionary<string, string?>? environment, params string[] args)
     {
         if (!File.Exists(DllPath))
         {
@@ -31,6 +39,15 @@ internal static class CliRunner
         };
         psi.ArgumentList.Add(DllPath);
         foreach (var arg in args) psi.ArgumentList.Add(arg);
+
+        if (environment is not null)
+        {
+            foreach (var (key, value) in environment)
+            {
+                if (value is null) psi.EnvironmentVariables.Remove(key);
+                else psi.EnvironmentVariables[key] = value;
+            }
+        }
 
         using var process = Process.Start(psi)!;
         var stdOut = process.StandardOutput.ReadToEnd();
