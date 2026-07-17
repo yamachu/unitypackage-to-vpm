@@ -46,17 +46,18 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e52c1c18c15310045b15816cb7012715f315d918
+        uses: yamachu/unity-cli-actions/setup-unity-cli@03842a9446a6d907a4dbb2929516e87636cd41fa
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: yamachu/unity-cli-actions/activate-unity-license@e52c1c18c15310045b15816cb7012715f315d918
+        uses: yamachu/unity-cli-actions/activate-unity-license@03842a9446a6d907a4dbb2929516e87636cd41fa
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
           username: ${{ secrets.UNITY_EMAIL }}
           password: ${{ secrets.UNITY_PASSWORD }}
+          license-ulf: ${{ secrets.UNITY_LICENSE_ULF }} # Required on macOS only
 
       - name: Run tests
         env:
