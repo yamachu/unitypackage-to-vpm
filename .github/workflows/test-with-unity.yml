@@ -19,7 +19,7 @@ on:
       unity_version:
         description: "Unity version to install (e.g. lts, 6000.3.20f1)"
         required: false
-        default: "lts"
+        default: "2022.3.22f1"
 
 jobs:
   test-with-unity:
