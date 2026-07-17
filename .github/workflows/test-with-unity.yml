@@ -14,6 +14,8 @@ on:
         description: "Unity version to install (e.g. lts, 6000.3.20f1)"
         required: false
         default: "lts"
+  # 一度発火させてPR状態でもworkflow_dispatchが使えるようになったら、pushトリガーを削除する
+  push:
 
 jobs:
   test-with-unity:
