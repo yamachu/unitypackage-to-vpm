@@ -64,7 +64,7 @@ jobs:
           UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: |
           mkdir -p /tmp/unity-probe/Assets
-          "$UNITY_PATH" -batchmode -nographics -quit -projectPath /tmp/unity-probe -logFile /dev/stdout
+          "$UNITY_PATH" -batchmode -nographics -quit -projectPath /tmp/unity-probe -logFile -
 
       - name: Run tests
         timeout-minutes: 10
