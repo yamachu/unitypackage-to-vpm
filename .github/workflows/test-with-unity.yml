@@ -46,18 +46,17 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: yamachu/unity-cli-actions/setup-unity-cli@03842a9446a6d907a4dbb2929516e87636cd41fa
+        uses: yamachu/unity-cli-actions/setup-unity-cli@015b047be9d1021d44269fb81270b9627cda574b
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: yamachu/unity-cli-actions/activate-unity-license@03842a9446a6d907a4dbb2929516e87636cd41fa
+        uses: yamachu/unity-cli-actions/activate-unity-license@015b047be9d1021d44269fb81270b9627cda574b
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
           username: ${{ secrets.UNITY_EMAIL }}
           password: ${{ secrets.UNITY_PASSWORD }}
-          license-ulf: ${{ secrets.UNITY_LICENSE_ULF }} # Required on macOS only
 
       - name: Diagnose raw batchmode invocation
         if: always()
