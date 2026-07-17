@@ -46,6 +46,10 @@ jobs:
           # service-account session from `auth login` is still in effect for the
           # `install` call that follows it.
           unity auth login --client-id "$UNITY_CLIENT_ID" --client-secret "$UNITY_CLIENT_SECRET" --no-store --non-interactive
+          # The service-account identity itself has no entitlements by default (confirmed via
+          # the raw batchmode diagnostic: "Found 0 entitlement groups and 0 free entitlements").
+          # Personal is a free, self-service license, so explicitly request/attach it here.
+          unity license activate --personal --accept-eula --non-interactive
           unity install "${{ github.event.inputs.unity_version || 'lts' }}" -y --accept-eula --non-interactive
           unity editors -i
           unity license
