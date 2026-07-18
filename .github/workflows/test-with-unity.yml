@@ -8,6 +8,14 @@ name: Test (with Unity)
 # The Unity-specific steps live in .github/actions/setup-unity-cli and
 # .github/actions/activate-unity-license. Requires the UNITY_SERIAL / UNITY_EMAIL /
 # UNITY_PASSWORD repository secrets.
+#
+# osx-x64 is pinned to macos-15-intel, not macos-latest/macos-26-intel: on the
+# macos-26-intel preview image, the Editor's first asset import hangs forever after
+# kicking off every built-in module import (no "finished importing" ever follows) —
+# looks like the same class of IPC-with-a-helper-process issue as the ULF activation
+# hang documented in activate-unity-license (not FMOD/audio; ruled out by reproducing
+# with a bare empty project and by ProjectSettings/AudioManager.asset's m_DisableAudio
+# making no difference). macos-15-intel does not have this problem.
 on:
   workflow_dispatch:
     inputs:
@@ -18,7 +26,19 @@ on:
 
 jobs:
   test-with-unity:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-arm64
+            os: macos-latest
+          - rid: osx-x64
+            os: macos-15-intel
+          - rid: win-x64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -34,12 +54,12 @@ jobs:
 
       - name: Setup Unity CLI
         id: unity-path
-        uses: ./.github/actions/setup-unity-cli
+        uses: yamachu/unity-cli-actions/setup-unity-cli@v1
         with:
           unity-version: ${{ github.event.inputs.unity_version || '2022.3.22f1' }}
 
       - name: Activate Unity Personal license
-        uses: ./.github/actions/activate-unity-license
+        uses: yamachu/unity-cli-actions/activate-unity-license@v1
         with:
           editor-path: ${{ steps.unity-path.outputs.editor-path }}
           serial: ${{ secrets.UNITY_SERIAL }}
@@ -47,6 +67,7 @@ jobs:
           password: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Run tests
+        timeout-minutes: 10
         env:
           UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: dotnet test tests/UnityPackageToVpm.Tests --configuration Release
