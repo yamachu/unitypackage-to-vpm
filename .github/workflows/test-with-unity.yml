@@ -25,7 +25,7 @@ jobs:
           - rid: osx-arm64
             os: macos-latest
           - rid: osx-x64
-            os: macos-15-intel
+            os: macos-26-intel
           - rid: win-x64
             os: windows-latest
           - rid: linux-x64
@@ -63,7 +63,28 @@ jobs:
         env:
           UNITY_PATH: ${{ steps.unity-path.outputs.editor-path }}
         run: |
-          mkdir -p /tmp/unity-probe/Assets
+          mkdir -p /tmp/unity-probe/Assets /tmp/unity-probe/ProjectSettings
+          cat > /tmp/unity-probe/ProjectSettings/AudioManager.asset <<'EOF'
+          %YAML 1.1
+          %TAG !u! tag:unity3d.com,2011:
+          --- !u!11 &1
+          AudioManager:
+            m_ObjectHideFlags: 0
+            serializedVersion: 2
+            m_Volume: 0.3
+            Rolloff Scale: 1
+            Doppler Factor: 1
+            Default Speaker Mode: 2
+            m_SampleRate: 0
+            m_DSPBufferSize: 1024
+            m_VirtualVoiceCount: 512
+            m_RealVoiceCount: 32
+            m_SpatializerPlugin:
+            m_AmbisonicDecoderPlugin:
+            m_DisableAudio: 1
+            m_VirtualizeEffects: 1
+            m_RequestedDSPBufferSize: 0
+          EOF
           "$UNITY_PATH" -batchmode -nographics -quit -projectPath /tmp/unity-probe -logFile -
 
       - name: Run tests
