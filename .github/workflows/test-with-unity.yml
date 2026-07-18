@@ -25,7 +25,7 @@ jobs:
           - rid: osx-arm64
             os: macos-latest
           - rid: osx-x64
-            os: macos-26-intel
+            os: macos-15-intel
           - rid: win-x64
             os: windows-latest
           - rid: linux-x64
