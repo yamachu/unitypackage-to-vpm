@@ -31,6 +31,7 @@ internal static class UnityMetaGenerator
         var assetsLink = Path.Combine(tempProjectDir, "Assets");
         Directory.CreateDirectory(tempProjectDir);
         Directory.CreateSymbolicLink(assetsLink, outputDirectory);
+        CreateDefaultManifest(tempProjectDir);
 
         try
         {
@@ -68,6 +69,33 @@ internal static class UnityMetaGenerator
         {
             CleanupTempProject(tempProjectDir, assetsLink);
         }
+    }
+
+    /// <summary>
+    /// Writes a minimal Packages/manifest.json so the throwaway project has the same
+    /// commonly-used, non-built-in packages that a normal Unity project (especially
+    /// ones used for VRChat avatars/worlds) would have. Without this, Unity only
+    /// registers the handful of truly built-in modules, so any imported script that
+    /// references e.g. UI/EventSystems, TextMeshPro, or Timeline
+    /// (all extremely common in VRChat-oriented .unitypackages) fails to compile in
+    /// the temp project even though it compiles fine in a real project.
+    /// </summary>
+    private static void CreateDefaultManifest(string tempProjectDir)
+    {
+        var packagesDir = Path.Combine(tempProjectDir, "Packages");
+        Directory.CreateDirectory(packagesDir);
+
+        const string manifest = """
+            {
+              "dependencies": {
+                "com.unity.ugui": "1.0.0",
+                "com.unity.textmeshpro": "3.0.6",
+                "com.unity.timeline": "1.7.5"
+              }
+            }
+            """;
+
+        File.WriteAllText(Path.Combine(packagesDir, "manifest.json"), manifest);
     }
 
     private static void CleanupTempProject(string tempProjectDir, string assetsLink)
